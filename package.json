@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@vercel/node": "^5.5.15",
+    "firebase-admin": "^13.6.0",
     "lucide-react": "^0.556.0",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
