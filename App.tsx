@@ -2,6 +2,7 @@ import React from 'react';
 import { HashRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
+import TestFirebase from './src/TestFirebase';
 import Sidebar from './components/Sidebar';
 import HeaderBar from './components/HeaderBar';
 import LivePage from './pages/dashboard/Live';
@@ -24,17 +25,17 @@ const DashboardLayout = () => {
         <div className="flex-1 min-w-0 flex flex-col">
           <HeaderBar />
           <main className="flex-1 p-8 overflow-y-auto max-h-[calc(100vh-5rem)]">
-             <div className="max-w-7xl mx-auto w-full">
-               <Outlet />
-             </div>
+            <div className="max-w-7xl mx-auto w-full">
+              <Outlet />
+            </div>
           </main>
         </div>
       </div>
-      
+
       {/* Global decorative gradients */}
       <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-0 overflow-hidden">
-         <div className="absolute top-[-10%] right-[-5%] w-[600px] h-[600px] bg-[#6A00FF]/10 rounded-full blur-[100px]" />
-         <div className="absolute bottom-[-10%] left-[-5%] w-[500px] h-[500px] bg-[#14F1FF]/5 rounded-full blur-[100px]" />
+        <div className="absolute top-[-10%] right-[-5%] w-[600px] h-[600px] bg-[#6A00FF]/10 rounded-full blur-[100px]" />
+        <div className="absolute bottom-[-10%] left-[-5%] w-[500px] h-[500px] bg-[#14F1FF]/5 rounded-full blur-[100px]" />
       </div>
     </div>
   );
@@ -46,7 +47,8 @@ const App = () => {
       <Router>
         <Routes>
           <Route path="/login" element={<Login />} />
-          
+          <Route path="/test-firebase" element={<TestFirebase />} />
+
           <Route path="/dashboard" element={<DashboardLayout />}>
             <Route index element={<Navigate to="/dashboard/live" replace />} />
             <Route path="live" element={<LivePage />} />
