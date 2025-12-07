@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { db } from "../src/backend/firebase-admin";
+import { db } from "../src/backend/firebase-admin.js";
 
 // CONSTANTS
 const VERIFY_TOKEN = "clinicai_verify_2025";
