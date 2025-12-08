@@ -636,6 +636,7 @@ export default async function handler(req, res) {
 
     // ========== POST: Incoming Messages ==========
     if (req.method === "POST") {
+        console.log("🔥 NEW WHATSAPP WEBHOOK EXECUTING", Date.now());
         console.log("📨 POST request received");
         console.log("RAW WEBHOOK:", JSON.stringify(req.body, null, 2));
 
