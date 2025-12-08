@@ -328,25 +328,99 @@ export default async function handler(req, res) {
 
     // ========== POST: Incoming Messages ==========
     if (req.method === "POST") {
+        // DEBUG: Log the entire raw webhook payload
         console.log("📨 POST request received");
+        console.log("RAW WEBHOOK:", JSON.stringify(req.body, null, 2));
 
         try {
             const body = req.body || {};
+
+            // Extract with safer fallback structure
             const entry = body.entry?.[0];
             const changes = entry?.changes?.[0];
             const value = changes?.value;
-            const messages = value?.messages;
+            const messages = value?.messages || [];
+            const statuses = value?.statuses || [];
 
-            if (!messages || messages.length === 0) {
-                console.log("No message in payload - acknowledging");
+            console.log("Extracted entry:", entry ? "✅ Found" : "❌ Missing");
+            console.log("Extracted changes:", changes ? "✅ Found" : "❌ Missing");
+            console.log("Extracted value:", value ? "✅ Found" : "❌ Missing");
+            console.log("Extracted messages array:", messages.length > 0 ? `✅ ${messages.length} message(s)` : "❌ Empty");
+            console.log("Extracted statuses array:", statuses.length > 0 ? `✅ ${statuses.length} status(es)` : "❌ Empty");
+
+            // Handle status updates (delivery receipts, read receipts, etc.)
+            if (messages.length === 0 && statuses.length > 0) {
+                console.log("📊 Status update received (not a message):", statuses[0]?.status);
+                return res.status(200).send("OK");
+            }
+
+            // No messages and no statuses
+            if (messages.length === 0) {
+                console.log("⚠️ No message in payload - acknowledging");
+                console.log("Payload structure:", JSON.stringify({
+                    hasEntry: !!entry,
+                    hasChanges: !!changes,
+                    hasValue: !!value,
+                    valueKeys: value ? Object.keys(value) : []
+                }, null, 2));
                 return res.status(200).send("OK");
             }
 
             const message = messages[0];
-            const from = message.from;
-            const messageText = message.text?.body || "";
+            console.log("📩 Extracted message:", JSON.stringify(message, null, 2));
+            console.log("Webhook type:", message?.type || "unknown");
 
-            console.log("📩 Message received:", { from, text: messageText });
+            // Extract sender phone number
+            const from = message.from;
+            console.log("From:", from);
+
+            // Extract message text based on message type
+            let messageText = "";
+
+            if (message.type === "text") {
+                messageText = message.text?.body || "";
+                console.log("Message text (text type):", messageText);
+            } else if (message.type === "interactive") {
+                // Handle button replies
+                if (message.interactive?.button_reply) {
+                    messageText = message.interactive.button_reply.title || message.interactive.button_reply.id || "";
+                    console.log("Message text (button reply):", messageText);
+                }
+                // Handle list replies
+                else if (message.interactive?.list_reply) {
+                    messageText = message.interactive.list_reply.title || message.interactive.list_reply.id || "";
+                    console.log("Message text (list reply):", messageText);
+                }
+            } else if (message.type === "image") {
+                messageText = message.image?.caption || "[Image]";
+                console.log("Message text (image):", messageText);
+            } else if (message.type === "document") {
+                messageText = message.document?.caption || "[Document]";
+                console.log("Message text (document):", messageText);
+            } else if (message.type === "audio") {
+                messageText = "[Audio message]";
+                console.log("Message text (audio):", messageText);
+            } else if (message.type === "video") {
+                messageText = message.video?.caption || "[Video]";
+                console.log("Message text (video):", messageText);
+            } else if (message.type === "location") {
+                messageText = "[Location]";
+                console.log("Message text (location):", messageText);
+            } else if (message.type === "contacts") {
+                messageText = "[Contact card]";
+                console.log("Message text (contacts):", messageText);
+            } else {
+                console.log("⚠️ Unknown message type:", message.type);
+                messageText = `[Unsupported message type: ${message.type}]`;
+            }
+
+            // If still no text, skip processing
+            if (!messageText || !from) {
+                console.log("❌ Missing message text or sender");
+                return res.status(200).send("OK");
+            }
+
+            console.log("✅ Final extracted message:", { from, text: messageText, type: message.type });
 
             // Initialize Firebase
             let db;
