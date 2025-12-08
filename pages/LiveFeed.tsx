@@ -40,137 +40,116 @@ export default function LiveFeed() {
     const [leadInfo, setLeadInfo] = useState<Lead | null>(null);
     const [loading, setLoading] = useState(true);
 
-    // Load all active conversations
+    // Load conversations
     useEffect(() => {
-        const q = query(
-            collection(db, 'conversations'),
-            orderBy('lastMessageAt', 'desc')
-        );
-
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const convs = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            } as Conversation));
+        const q = query(collection(db, 'conversations'), orderBy('lastMessageAt', 'desc'));
+        const unsub = onSnapshot(q, snap => {
+            const convs = snap.docs.map(d => ({ id: d.id, ...d.data() } as Conversation));
             setConversations(convs);
             setLoading(false);
         });
-
-        return () => unsubscribe();
+        return () => unsub();
     }, []);
 
     // Load messages for selected conversation
     useEffect(() => {
         if (!selectedConversation) return;
-
         const q = query(
             collection(db, 'messages'),
             where('conversationId', '==', selectedConversation),
             orderBy('createdAt', 'asc')
         );
-
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const msgs = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            } as Message));
+        const unsub = onSnapshot(q, snap => {
+            const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() } as Message));
             setMessages(msgs);
         });
-
-        return () => unsubscribe();
+        return () => unsub();
     }, [selectedConversation]);
 
-    // Load patient and lead info
+    // Load patient and lead info when a conversation is selected
     useEffect(() => {
         if (!selectedConversation) return;
-
         const conv = conversations.find(c => c.id === selectedConversation);
         if (!conv) return;
 
-        // Fetch patient
-        getDoc(doc(db, 'patients', conv.patientId)).then(snapshot => {
-            if (snapshot.exists()) {
-                setPatientInfo({ id: snapshot.id, ...snapshot.data() } as Patient);
-            }
+        // Patient
+        getDoc(doc(db, 'patients', conv.patientId)).then(snap => {
+            if (snap.exists()) setPatientInfo({ id: snap.id, ...snap.data() } as Patient);
         });
 
-        // Fetch latest lead
+        // Lead (latest)
         const leadQuery = query(
             collection(db, 'leads'),
             where('patientId', '==', conv.patientId),
             orderBy('createdAt', 'desc')
         );
-
-        onSnapshot(leadQuery, (snapshot) => {
-            if (!snapshot.empty) {
-                setLeadInfo(snapshot.docs[0].data() as Lead);
-            }
+        const unsub = onSnapshot(leadQuery, snap => {
+            if (!snap.empty) setLeadInfo(snap.docs[0].data() as Lead);
         });
+        return () => unsub();
     }, [selectedConversation, conversations]);
 
     const handleHandoff = async (conversationId: string) => {
         try {
-            await fetch('/api/handoff-to-staff', {
+            await fetch('/api/toggle-bot-mode', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    conversationId,
-                    staffId: 'current-staff-id', // Replace with actual staff ID from auth context
-                    reason: 'manual'
-                })
+                body: JSON.stringify({ conversationId, mode: 'human' })
             });
-            alert('Conversation handed off to you!');
-        } catch (error) {
-            console.error('Handoff error:', error);
-            alert('Failed to hand off conversation');
+            alert('Bot disabled – staff can now reply.');
+        } catch (e) {
+            console.error('Handoff error', e);
+            alert('Failed to switch to human mode');
         }
     };
 
     const handleSendMessage = async (text: string) => {
         if (!selectedConversation) return;
-
         try {
-            await fetch('/api/staff-message', {
+            await fetch('/api/agent-reply', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    conversationId: selectedConversation,
-                    staffId: 'current-staff-id', // Replace with actual staff ID
-                    text
-                })
+                body: JSON.stringify({ conversationId: selectedConversation, message: text })
             });
-        } catch (error) {
-            console.error('Send message error:', error);
-            alert('Failed to send message');
+        } catch (e) {
+            console.error('Send error', e);
+            alert('Failed to send staff message');
         }
     };
 
-    const getBubbleColor = (from: string) => {
+    const bubbleColor = (from: string) => {
         switch (from) {
-            case 'bot': return 'bg-purple-100 text-purple-900 border-purple-300';
-            case 'patient': return 'bg-blue-100 text-blue-900 border-blue-300';
-            case 'staff': return 'bg-green-100 text-green-900 border-green-300';
-            default: return 'bg-gray-100 text-gray-900';
+            case 'bot':
+                return 'bg-purple-100 text-purple-900 border-purple-300';
+            case 'patient':
+                return 'bg-blue-100 text-blue-900 border-blue-300';
+            case 'staff':
+                return 'bg-green-100 text-green-900 border-green-300';
+            default:
+                return 'bg-gray-100 text-gray-900';
         }
     };
 
-    const getIcon = (from: string) => {
+    const iconFor = (from: string) => {
         switch (from) {
-            case 'bot': return <Bot className="w-4 h-4" />;
-            case 'patient': return <User className="w-4 h-4" />;
-            case 'staff': return <UserCircle className="w-4 h-4" />;
-            default: return <MessageCircle className="w-4 h-4" />;
+            case 'bot':
+                return <Bot className="w-4 h-4" />;
+            case 'patient':
+                return <User className="w-4 h-4" />;
+            case 'staff':
+                return <UserCircle className="w-4 h-4" />;
+            default:
+                return <MessageCircle className="w-4 h-4" />;
         }
     };
 
     return (
         <div className="flex h-screen bg-gray-50">
-            {/* Sidebar - Conversations List */}
+            {/* Sidebar */}
             <div className="w-80 bg-white border-r border-gray-200 overflow-y-auto">
                 <div className="p-4 border-b border-gray-200">
                     <h2 className="text-xl font-bold text-gray-800">Live Conversations</h2>
                 </div>
-
                 {loading ? (
                     <div className="p-4 text-center text-gray-500">Loading...</div>
                 ) : conversations.length === 0 ? (
@@ -181,8 +160,7 @@ export default function LiveFeed() {
                             <div
                                 key={conv.id}
                                 onClick={() => setSelectedConversation(conv.id)}
-                                className={`p-4 cursor-pointer hover:bg-gray-50 transition ${selectedConversation === conv.id ? 'bg-purple-50 border-l-4 border-purple-500' : ''
-                                    }`}
+                                className={`p-4 cursor-pointer hover:bg-gray-50 transition ${selectedConversation === conv.id ? 'bg-purple-50 border-l-4 border-purple-500' : ''}`}
                             >
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
@@ -191,8 +169,9 @@ export default function LiveFeed() {
                                             {conv.patientId.substring(0, 8)}...
                                         </span>
                                     </div>
-                                    <span className={`px-2 py-1 text-xs rounded-full ${conv.mode === 'human' ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700'
-                                        }`}>
+                                    <span
+                                        className={`px-2 py-1 text-xs rounded-full ${conv.mode === 'human' ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700'}`}
+                                    >
                                         {conv.mode === 'human' ? 'Human' : 'Bot'}
                                     </span>
                                 </div>
@@ -205,11 +184,11 @@ export default function LiveFeed() {
                 )}
             </div>
 
-            {/* Main Chat Area */}
+            {/* Main chat area */}
             <div className="flex-1 flex flex-col">
                 {selectedConversation ? (
                     <>
-                        {/* Header with Patient Info */}
+                        {/* Header */}
                         <div className="bg-white border-b border-gray-200 p-4">
                             <div className="flex items-center justify-between">
                                 <div>
@@ -245,17 +224,12 @@ export default function LiveFeed() {
                         {/* Messages */}
                         <div className="flex-1 overflow-y-auto p-4 space-y-3">
                             {messages.map(msg => (
-                                <div
-                                    key={msg.id}
-                                    className={`flex ${msg.from === 'patient' ? 'justify-start' : 'justify-end'}`}
-                                >
-                                    <div className={`max-w-xl px-4 py-2 rounded-lg border ${getBubbleColor(msg.from)}`}>
+                                <div key={msg.id} className={`flex ${msg.from === 'patient' ? 'justify-start' : 'justify-end'}`}>
+                                    <div className={`max-w-xl px-4 py-2 rounded-lg border ${bubbleColor(msg.from)}`}>
                                         <div className="flex items-center gap-2 mb-1">
-                                            {getIcon(msg.from)}
+                                            {iconFor(msg.from)}
                                             <span className="text-xs font-semibold uppercase">{msg.from}</span>
-                                            {msg.language !== 'en' && (
-                                                <span className="text-xs bg-white px-1 rounded">{msg.language}</span>
-                                            )}
+                                            {msg.language !== 'en' && <span className="text-xs bg-white px-1 rounded">{msg.language}</span>}
                                         </div>
                                         <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
                                     </div>
@@ -263,14 +237,14 @@ export default function LiveFeed() {
                             ))}
                         </div>
 
-                        {/* Message Input */}
+                        {/* Input */}
                         <div className="bg-white border-t border-gray-200 p-4">
                             <form
-                                onSubmit={(e) => {
+                                onSubmit={e => {
                                     e.preventDefault();
                                     const input = e.currentTarget.elements.namedItem('message') as HTMLInputElement;
                                     if (input.value.trim()) {
-                                        handleSendMessage(input.value);
+                                        handleSendMessage(input.value.trim());
                                         input.value = '';
                                     }
                                 }}
